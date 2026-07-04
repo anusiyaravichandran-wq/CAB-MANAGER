@@ -1,6 +1,6 @@
-const CACHE_NAME = "taxi-tracker-v3";
+const CACHE_NAME = "taxi-tracker-v3-1";
 const ASSETS = [
-  "./index-v3.html",
+  "./index.html",
   "./app-v3.js",
   "./manifest.json",
   "./icons/icon-192.png",
@@ -9,7 +9,7 @@ const ASSETS = [
 // Files that must always be fetched fresh from the network first, so a driver
 // opening the app after you push an update sees the new code immediately —
 // no manual cache-clear or reinstall needed. Falls back to cache only if offline.
-const APP_SHELL = ["index-v3.html", "app-v3.js"];
+const APP_SHELL = ["index.html", "app-v3.js"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -55,7 +55,7 @@ self.addEventListener("fetch", (event) => {
         const clone = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         return response;
-      }).catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index-v3.html")))
+      }).catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.html")))
     );
     return;
   }
