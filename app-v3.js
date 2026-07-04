@@ -1409,9 +1409,12 @@ window.addEventListener("load", ()=>{
   const savedDriverId = localStorage.getItem("taxiapp_v3_driverId");
   ensureAuth().then(()=>{
     if(savedOwnerId){
-      currentOwnerId = savedOwnerId;
-      currentUser = "owner";
-      enterApp();
+      db.collection("owners").doc(savedOwnerId).get().then((doc)=>{
+        if(!doc.exists){ logout(); return; }
+        currentOwnerId = savedOwnerId;
+        currentUser = "owner";
+        enterApp();
+      }).catch(()=>{ currentUser = null; currentOwnerId = null; });
     } else if(savedDriverId){
       currentDriverId = savedDriverId;
       db.collection("drivers").doc(currentDriverId).get().then(async (doc)=>{
