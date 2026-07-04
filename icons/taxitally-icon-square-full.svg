@@ -1,0 +1,16 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>TaxiTally app icon</title>
+<desc>Square red rounded icon with a centered double T monogram and Taxi Tally text below it.</desc>
+
+<rect x="16" y="16" width="480" height="480" rx="96" fill="#C22B2B"/>
+
+<!-- TT monogram, centered on x=256 -->
+<rect x="176" y="150" width="88" height="26" rx="9" fill="#FFFFFF"/>
+<rect x="208" y="150" width="26" height="116" rx="9" fill="#FFFFFF"/>
+<rect x="248" y="150" width="88" height="26" rx="9" fill="#FFFFFF" opacity="0.9"/>
+<rect x="280" y="150" width="26" height="116" rx="9" fill="#FFFFFF" opacity="0.9"/>
+
+<!-- Text, centered on x=256 -->
+<text x="256" y="360" text-anchor="middle" font-family="'Segoe Print','Comic Sans MS',cursive" font-weight="700" font-size="50" fill="#FFFFFF">Taxi Tally</text>
+
+</svg>
