@@ -196,6 +196,7 @@ label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; ma
 }
 .export-toggle button.on{border-color:var(--accent); background:rgba(245,158,11,0.15); color:var(--accent2);}
 .otp-input{letter-spacing:8px; font-size:20px; text-align:center; font-weight:700;}
+#recaptcha-container-owner, #recaptcha-container-join, #recaptcha-container-forgot{margin-top:8px;}
 .link-btn{background:none; border:none; color:var(--accent2); font-size:13px; cursor:pointer; margin-top:12px; text-decoration:underline; padding:0; display:block; width:100%; text-align:center;}
 .owner-id-badge{
   display:inline-block; background:rgba(245,158,11,.15); border:1px solid var(--accent);
@@ -237,7 +238,7 @@ label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; ma
 </head>
 <body>
 
-<!-- ============ OWNER: mobile number ============ -->
+<!-- ============ OWNER: mobile → OTP ============ -->
 <div id="screen_ownerMobile" class="screen active">
   <div class="login-wrap">
     <div class="login-card">
@@ -246,7 +247,8 @@ label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; ma
       <p id="t_tagline">Taxi Revenue & Payout Tracker</p>
       <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Owner Mobile Number</label>
       <input type="tel" id="ownerMobileInput" placeholder="10-digit mobile number" maxlength="10">
-      <button class="btn" onclick="ownerContinue()">Continue</button>
+      <button class="btn" onclick="sendOwnerOtp()">Send OTP</button>
+      <div id="recaptcha-container-owner"></div>
       <button class="link-btn" onclick="goDriverStart()" style="margin-top:14px;">Login as Driver instead →</button>
       <div class="lang-toggle" style="justify-content:center; margin-top:18px;">
         <button id="langTaBtn" onclick="setLang('ta')">தமிழ்</button>
@@ -256,32 +258,15 @@ label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; ma
   </div>
 </div>
 
-<!-- ============ OWNER: enter PIN (returning owner) ============ -->
-<div id="screen_ownerEnterPin" class="screen">
+<!-- ============ OWNER: verify OTP ============ -->
+<div id="screen_ownerOtp" class="screen">
   <div class="login-wrap">
     <div class="login-card">
       <div class="emoji">🔐</div>
-      <h1>Enter Your PIN</h1>
-      <p id="ownerPinMobileLabel">Owner account for your mobile</p>
-      <input type="text" id="ownerPinInput" class="otp-input" maxlength="4" inputmode="numeric" placeholder="4-digit PIN">
-      <button class="btn" onclick="ownerEnterPinSubmit()">Login</button>
-      <button class="link-btn" onclick="backToOwnerMobile()">← Change number</button>
-    </div>
-  </div>
-</div>
-
-<!-- ============ OWNER: set PIN (new owner) ============ -->
-<div id="screen_ownerSetPin" class="screen">
-  <div class="login-wrap">
-    <div class="login-card">
-      <div class="emoji">🚖</div>
-      <h1>Create Your PIN</h1>
-      <div class="muted-small">No account found for this number yet — set a 4-digit PIN to create your Owner account.</div>
-      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">New PIN (4 digits)</label>
-      <input type="text" id="ownerNewPinInput" class="otp-input" maxlength="4" inputmode="numeric">
-      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Confirm PIN</label>
-      <input type="text" id="ownerNewPinConfirmInput" class="otp-input" maxlength="4" inputmode="numeric">
-      <button class="btn" onclick="ownerSetPin()">Create Account</button>
+      <h1>Verify OTP</h1>
+      <p id="ownerOtpSentTo">Code sent to your mobile</p>
+      <input type="text" id="ownerOtpInput" class="otp-input" maxlength="6" inputmode="numeric" placeholder="6-digit OTP">
+      <button class="btn" onclick="verifyOwnerOtp()">Verify &amp; Continue</button>
       <button class="link-btn" onclick="backToOwnerMobile()">← Change number</button>
     </div>
   </div>
@@ -301,7 +286,7 @@ label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; ma
   </div>
 </div>
 
-<!-- ============ DRIVER JOIN: Owner ID + mobile + Join Code ============ -->
+<!-- ============ DRIVER JOIN: Owner ID + mobile ============ -->
 <div id="screen_driverJoin" class="screen">
   <div class="login-wrap">
     <div class="login-card">
@@ -310,11 +295,22 @@ label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; ma
       <input type="text" id="joinOwnerIdInput" placeholder="Owner ID given by your owner">
       <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Your Mobile Number</label>
       <input type="tel" id="joinDriverMobileInput" placeholder="10-digit mobile number" maxlength="10">
-      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Join Code</label>
-      <input type="text" id="joinCodeInput" placeholder="Join code given by your owner" style="text-transform:uppercase;">
-      <button class="btn" onclick="submitJoinRequest()">Join</button>
-      <div class="muted-small" style="margin-top:10px;">Ask your owner for the Owner ID and Join Code shown on their Drivers tab.</div>
+      <button class="btn" onclick="submitJoinRequest()">Send Join Request</button>
+      <div class="muted-small" style="margin-top:10px;">An OTP will be sent to the <b>owner's</b> phone to approve this request. Ask your owner for the code.</div>
+      <div id="recaptcha-container-join"></div>
       <button class="link-btn" onclick="goDriverStart()">← Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRIVER JOIN: OTP (owner's phone) ============ -->
+<div id="screen_driverJoinOtp" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Enter Approval Code</h1>
+      <div class="muted-small" id="joinOtpHint">Ask your owner for the OTP sent to their phone.</div>
+      <input type="text" id="joinOtpInput" class="otp-input" maxlength="6" inputmode="numeric" placeholder="6-digit OTP" style="margin-top:14px;">
+      <button class="btn" onclick="verifyJoinOtp()">Verify</button>
     </div>
   </div>
 </div>
@@ -345,8 +341,43 @@ label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; ma
       <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">PIN</label>
       <input type="text" id="loginPinInput" class="otp-input" maxlength="4" inputmode="numeric">
       <button class="btn" onclick="driverLogin()">Login</button>
-      <div class="muted-small" style="margin-top:10px;">Forgot your PIN? Ask your owner to reset it from the Drivers tab.</div>
+      <button class="link-btn" onclick="goForgotPin()">Forgot PIN?</button>
       <button class="link-btn" onclick="goDriverStart()">← Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRIVER: forgot PIN ============ -->
+<div id="screen_forgotPinMobile" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Reset PIN</h1>
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Your Mobile Number</label>
+      <input type="tel" id="forgotMobileInput" placeholder="10-digit mobile number" maxlength="10">
+      <button class="btn" onclick="sendForgotPinOtp()">Send OTP</button>
+      <div id="recaptcha-container-forgot"></div>
+      <button class="link-btn" onclick="goDriverLoginScreen()">← Back</button>
+    </div>
+  </div>
+</div>
+<div id="screen_forgotPinOtp" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Verify OTP</h1>
+      <input type="text" id="forgotOtpInput" class="otp-input" maxlength="6" inputmode="numeric" placeholder="6-digit OTP">
+      <button class="btn" onclick="verifyForgotPinOtp()">Verify</button>
+    </div>
+  </div>
+</div>
+<div id="screen_forgotPinReset" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Set New PIN</h1>
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">New PIN (4 digits)</label>
+      <input type="text" id="resetPinInput" class="otp-input" maxlength="4" inputmode="numeric">
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Confirm PIN</label>
+      <input type="text" id="resetPinConfirmInput" class="otp-input" maxlength="4" inputmode="numeric">
+      <button class="btn" onclick="resetDriverPin()">Save New PIN</button>
     </div>
   </div>
 </div>
@@ -445,11 +476,8 @@ label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; ma
     </div>
     <div class="card">
       <div class="section-title">Share to Onboard a Driver</div>
-      <div class="muted-small">Give this Owner ID and Join Code to your driver — they'll enter both to join.</div>
+      <div class="muted-small">Give this Owner ID to your driver — they'll use it to send a join request.</div>
       <div class="owner-id-badge" style="margin-top:10px;" id="ownerIdBadge2">Owner ID: —</div>
-      <div class="owner-id-badge" style="margin-top:8px;" id="ownerJoinCodeBadge">Join Code: —</div>
-      <button class="btn secondary small" style="margin-top:10px;" onclick="regenerateJoinCode()">Regenerate Join Code</button>
-      <div class="muted-small" style="margin-top:8px;">Regenerating invalidates the old code — anyone who hasn't joined yet will need the new one.</div>
     </div>
   </div>
 
