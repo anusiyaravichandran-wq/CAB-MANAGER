@@ -139,6 +139,7 @@ function setLang(l){ currentLang = l; localStorage.setItem("lang", l); applyTran
 
 /* ===================== AUTH HELPERS ===================== */
 function normalizeMobile(raw){ return (raw||"").replace(/\D/g,"").slice(-10); }
+function fullPhone(mobile){ return COUNTRY_CODE + mobile; }
 // Sequential Owner IDs (OWN000001, OWN000002, ...) using a Firestore transaction
 // on a single counters/ownerId doc, so concurrent signups can't collide.
 async function nextOwnerId(){
@@ -157,113 +158,126 @@ function showAuthScreen(fullId){
   document.querySelectorAll(".screen").forEach(s=>{ s.classList.remove("active"); s.classList.remove("show"); });
   document.getElementById(fullId).classList.add("active");
 }
-function genJoinCode(){ return Math.random().toString(36).slice(2,8).toUpperCase(); }
+const recaptchaVerifiers = {};
+function getRecaptcha(containerId){
+  if(recaptchaVerifiers[containerId]) return recaptchaVerifiers[containerId];
+  const verifier = new firebase.auth.RecaptchaVerifier(containerId, { size: "invisible" }, auth);
+  recaptchaVerifiers[containerId] = verifier;
+  return verifier;
+}
+function resetRecaptcha(containerId){
+  if(recaptchaVerifiers[containerId]){ try{ recaptchaVerifiers[containerId].clear(); }catch(e){} delete recaptchaVerifiers[containerId]; }
+}
 function goOwnerMobile(){ showAuthScreen("screen_ownerMobile"); }
 function goDriverStart(){ showAuthScreen("screen_driverStart"); }
 function goDriverLoginScreen(){ showAuthScreen("screen_driverLogin"); }
 function goDriverJoinScreen(){ showAuthScreen("screen_driverJoin"); }
+function goForgotPin(){ showAuthScreen("screen_forgotPinMobile"); }
 function backToOwnerMobile(){ showAuthScreen("screen_ownerMobile"); }
 
-/* ===================== OWNER LOGIN (mobile + PIN, no OTP) ===================== */
+/* ===================== OWNER LOGIN (mobile → OTP) ===================== */
+let ownerConfirmationResult = null;
 let currentOwnerId = null, currentOwnerMobile = null;
 
-async function ownerContinue(){
+async function sendOwnerOtp(){
   const mobile = normalizeMobile(document.getElementById("ownerMobileInput").value);
   if(mobile.length !== 10){ showToast("Enter a valid 10-digit mobile number"); return; }
   currentOwnerMobile = mobile;
   try{
-    await ensureAuth();
-    const indexDoc = await db.collection("ownerMobileIndex").doc(mobile).get();
-    if(indexDoc.exists){
-      currentOwnerId = indexDoc.data().ownerId;
-      document.getElementById("ownerPinMobileLabel").textContent = `Owner account for ${mobile}`;
-      document.getElementById("ownerPinInput").value = "";
-      showAuthScreen("screen_ownerEnterPin");
-    } else {
-      document.getElementById("ownerNewPinInput").value = "";
-      document.getElementById("ownerNewPinConfirmInput").value = "";
-      showAuthScreen("screen_ownerSetPin");
-    }
+    const verifier = getRecaptcha("recaptcha-container-owner");
+    ownerConfirmationResult = await auth.signInWithPhoneNumber(fullPhone(mobile), verifier);
+    document.getElementById("ownerOtpSentTo").textContent = `Code sent to ${mobile}`;
+    showAuthScreen("screen_ownerOtp");
   }catch(err){
-    console.error("ownerContinue failed:", err);
-    showToast("Couldn't reach the server — check connection and try again");
+    resetRecaptcha("recaptcha-container-owner");
+    showToast("Couldn't send OTP: " + (err.message || "try again"));
   }
 }
-async function ownerEnterPinSubmit(){
-  const pin = document.getElementById("ownerPinInput").value.trim();
-  if(pin.length !== 4){ showToast("Enter your 4-digit PIN"); return; }
+async function verifyOwnerOtp(){
+  const code = document.getElementById("ownerOtpInput").value.trim();
+  if(code.length !== 6){ showToast("Enter the 6-digit OTP"); return; }
+  if(!ownerConfirmationResult){ showToast("Request a new OTP first"); return; }
   try{
-    await ensureAuth();
-    const ownerDoc = await db.collection("owners").doc(currentOwnerId).get();
-    if(!ownerDoc.exists || ownerDoc.data().pin !== pin){ showToast("Incorrect PIN"); return; }
+    await ownerConfirmationResult.confirm(code);
+    await loadOrCreateOwner(currentOwnerMobile);
+    await auth.signOut().catch(()=>{});
+    await auth.signInAnonymously().catch(()=>{});
     localStorage.setItem("taxiapp_v3_ownerId", currentOwnerId);
     currentUser = "owner";
     currentCabId = null;
     enterApp();
   }catch(err){
-    console.error("ownerEnterPinSubmit failed:", err);
-    showToast("Couldn't reach the server — check connection and try again");
+    showToast("Invalid OTP, try again");
   }
 }
-async function ownerSetPin(){
-  const pin = document.getElementById("ownerNewPinInput").value.trim();
-  const confirmPin = document.getElementById("ownerNewPinConfirmInput").value.trim();
-  if(pin.length !== 4){ showToast("PIN must be 4 digits"); return; }
-  if(pin !== confirmPin){ showToast("PINs don't match"); return; }
-  try{
-    await ensureAuth();
-    await createOwner(currentOwnerMobile, pin);
-    localStorage.setItem("taxiapp_v3_ownerId", currentOwnerId);
-    currentUser = "owner";
-    currentCabId = null;
-    enterApp();
-  }catch(err){
-    console.error("ownerSetPin failed:", err);
-    showToast("Couldn't reach the server — check connection and try again");
-  }
-}
-async function createOwner(mobile, pin){
+async function loadOrCreateOwner(mobile){
+  const indexRef = db.collection("ownerMobileIndex").doc(mobile);
+  const indexDoc = await indexRef.get();
+  if(indexDoc.exists){ currentOwnerId = indexDoc.data().ownerId; return; }
   const ownerId = await nextOwnerId();
-  await db.collection("owners").doc(ownerId).set({ ownerId, mobile, pin, joinCode: genJoinCode(), createdAt: nowTs() });
-  await db.collection("ownerMobileIndex").doc(mobile).set({ ownerId });
+  await db.collection("owners").doc(ownerId).set({ ownerId, mobile, createdAt: nowTs() });
+  await indexRef.set({ ownerId });
   currentOwnerId = ownerId;
 }
 
-/* ===================== DRIVER JOIN (Owner ID + mobile + Join Code, no OTP) ===================== */
+/* ===================== DRIVER JOIN (Owner ID + mobile → OTP to OWNER) ===================== */
+let joinConfirmationResult = null;
 let joinOwnerId = null, joinDriverMobile = null, joinExistingDriverId = null;
 
 async function submitJoinRequest(){
   const ownerId = (document.getElementById("joinOwnerIdInput").value||"").trim().toUpperCase();
   const mobile = normalizeMobile(document.getElementById("joinDriverMobileInput").value);
-  const code = (document.getElementById("joinCodeInput").value||"").trim().toUpperCase();
   if(!ownerId){ showToast("Enter the Owner ID"); return; }
   if(mobile.length !== 10){ showToast("Enter a valid 10-digit mobile number"); return; }
-  if(!code){ showToast("Enter the Join Code from your owner"); return; }
+  let ownerDoc;
   try{
     await ensureAuth();
-    const ownerDoc = await db.collection("owners").doc(ownerId).get();
-    if(!ownerDoc.exists){ showToast("Owner ID not found — check with your owner"); return; }
-    if((ownerDoc.data().joinCode||"").toUpperCase() !== code){ showToast("Incorrect Join Code — ask your owner for the current one"); return; }
+    ownerDoc = await db.collection("owners").doc(ownerId).get();
+  }catch(err){
+    console.error("submitJoinRequest lookup failed:", err);
+    showToast("Couldn't reach the server — check connection and try again");
+    return;
+  }
+  if(!ownerDoc.exists){ showToast("Owner ID not found — check with your owner"); return; }
 
-    const existingSnap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
-    if(!existingSnap.empty){
-      const ex = existingSnap.docs[0];
-      const exData = ex.data();
-      if(exData.ownerId === ownerId){
-        if(exData.status === "active"){ showToast("Already joined this owner — try logging in instead"); return; }
-        joinExistingDriverId = ex.id;
-      } else {
-        showToast("This mobile is already linked to a different owner"); return;
-      }
+  const existingSnap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
+  if(!existingSnap.empty){
+    const ex = existingSnap.docs[0];
+    const exData = ex.data();
+    if(exData.ownerId === ownerId){
+      if(exData.status === "active"){ showToast("Already joined this owner — try logging in instead"); return; }
+      joinExistingDriverId = ex.id;
     } else {
-      joinExistingDriverId = null;
+      showToast("This mobile is already linked to a different owner"); return;
     }
+  } else {
+    joinExistingDriverId = null;
+  }
 
-    joinOwnerId = ownerId; joinDriverMobile = mobile;
+  joinOwnerId = ownerId; joinDriverMobile = mobile;
+  const ownerMobile = ownerDoc.data().mobile;
+  try{
+    const verifier = getRecaptcha("recaptcha-container-join");
+    joinConfirmationResult = await auth.signInWithPhoneNumber(fullPhone(ownerMobile), verifier);
+    document.getElementById("joinOtpHint").textContent =
+      `OTP sent to your owner's phone (ending ${ownerMobile.slice(-4)}). Ask them for the code.`;
+    showAuthScreen("screen_driverJoinOtp");
+  }catch(err){
+    resetRecaptcha("recaptcha-container-join");
+    showToast("Couldn't send OTP: " + (err.message || "try again"));
+  }
+}
+async function verifyJoinOtp(){
+  const code = document.getElementById("joinOtpInput").value.trim();
+  if(code.length !== 6){ showToast("Enter the 6-digit OTP"); return; }
+  if(!joinConfirmationResult){ showToast("Request a new join first"); return; }
+  try{
+    await joinConfirmationResult.confirm(code);
+    await auth.signOut().catch(()=>{});
+    await auth.signInAnonymously().catch(()=>{});
     showAuthScreen("screen_driverSetPin");
   }catch(err){
-    console.error("submitJoinRequest failed:", err);
-    showToast("Couldn't reach the server — check connection and try again");
+    showToast("Invalid OTP, try again");
   }
 }
 async function setDriverPin(){
@@ -331,7 +345,53 @@ async function recheckDriverAssignment(){
   await resolveDriverCabAndEnter();
 }
 
-/* ===================== FORGOT PIN — handled by owner from the Drivers tab, see ownerResetDriverPin() ===================== */
+/* ===================== FORGOT PIN (OTP to DRIVER's own mobile) — plus owner can also reset manually, see ownerResetDriverPin() ===================== */
+let forgotConfirmationResult = null, forgotDriverId = null;
+
+async function sendForgotPinOtp(){
+  const mobile = normalizeMobile(document.getElementById("forgotMobileInput").value);
+  if(mobile.length !== 10){ showToast("Enter a valid 10-digit mobile number"); return; }
+  let snap;
+  try{
+    await ensureAuth();
+    snap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
+  }catch(err){
+    console.error("sendForgotPinOtp lookup failed:", err);
+    showToast("Couldn't reach the server — check connection and try again");
+    return;
+  }
+  if(snap.empty){ showToast("No account found for this mobile"); return; }
+  forgotDriverId = snap.docs[0].id;
+  try{
+    const verifier = getRecaptcha("recaptcha-container-forgot");
+    forgotConfirmationResult = await auth.signInWithPhoneNumber(fullPhone(mobile), verifier);
+    showAuthScreen("screen_forgotPinOtp");
+  }catch(err){
+    resetRecaptcha("recaptcha-container-forgot");
+    showToast("Couldn't send OTP: " + (err.message || "try again"));
+  }
+}
+async function verifyForgotPinOtp(){
+  const code = document.getElementById("forgotOtpInput").value.trim();
+  if(code.length !== 6){ showToast("Enter the 6-digit OTP"); return; }
+  try{
+    await forgotConfirmationResult.confirm(code);
+    await auth.signOut().catch(()=>{});
+    await auth.signInAnonymously().catch(()=>{});
+    showAuthScreen("screen_forgotPinReset");
+  }catch(err){
+    showToast("Invalid OTP, try again");
+  }
+}
+async function resetDriverPin(){
+  const pin = document.getElementById("resetPinInput").value.trim();
+  const confirmPin = document.getElementById("resetPinConfirmInput").value.trim();
+  if(pin.length !== 4){ showToast("PIN must be 4 digits"); return; }
+  if(pin !== confirmPin){ showToast("PINs don't match"); return; }
+  await db.collection("drivers").doc(forgotDriverId).set({pin}, {merge:true});
+  showToast("PIN reset — log in with your new PIN");
+  goDriverLoginScreen();
+}
 
 /* ===================== OWNER: CABS ===================== */
 async function loadCabs(){
@@ -389,8 +449,6 @@ async function loadDrivers(){
   list.innerHTML = "";
   document.getElementById("driversEmptyMsg").style.display = snap.empty ? "block":"none";
   document.getElementById("ownerIdBadge2").textContent = "Owner ID: " + currentOwnerId;
-  const ownerSelfDoc = await db.collection("owners").doc(currentOwnerId).get();
-  document.getElementById("ownerJoinCodeBadge").textContent = "Join Code: " + (ownerSelfDoc.data().joinCode || "—");
 
   for(const doc of snap.docs){
     const d = doc.data();
@@ -453,12 +511,6 @@ async function ownerResetDriverPin(driverId){
   if(!/^\d{4}$/.test(pin)){ showToast("PIN must be exactly 4 digits"); return; }
   await db.collection("drivers").doc(driverId).set({pin}, {merge:true});
   showToast(`Driver PIN reset to ${pin} — tell them to log in with it.`);
-}
-async function regenerateJoinCode(){
-  const code = genJoinCode();
-  await db.collection("owners").doc(currentOwnerId).set({joinCode: code}, {merge:true});
-  document.getElementById("ownerJoinCodeBadge").textContent = "Join Code: " + code;
-  showToast("New join code generated — share it with your driver");
 }
 async function toggleDriverActive(driverId, currentStatus){
   const newStatus = currentStatus === "active" ? "inactive" : "active";
