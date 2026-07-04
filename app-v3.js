@@ -204,26 +204,27 @@ async function submitJoinRequest(){
   const mobile = normalizeMobile(document.getElementById("joinDriverMobileInput").value);
   if(!ownerId){ showToast("Enter the Owner ID"); return; }
   if(mobile.length !== 10){ showToast("Enter a valid 10-digit mobile number"); return; }
-  const ownerDoc = await db.collection("owners").doc(ownerId).get();
-  if(!ownerDoc.exists){ showToast("Owner ID not found — check with your owner"); return; }
-
-  const existingSnap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
-  if(!existingSnap.empty){
-    const ex = existingSnap.docs[0];
-    const exData = ex.data();
-    if(exData.ownerId === ownerId){
-      if(exData.status === "active"){ showToast("Already joined this owner — try logging in instead"); return; }
-      joinExistingDriverId = ex.id;
-    } else {
-      showToast("This mobile is already linked to a different owner"); return;
-    }
-  } else {
-    joinExistingDriverId = null;
-  }
-
-  joinOwnerId = ownerId; joinDriverMobile = mobile;
-  const ownerMobile = ownerDoc.data().mobile;
   try{
+    if(!auth.currentUser) await auth.signInAnonymously();
+    const ownerDoc = await db.collection("owners").doc(ownerId).get();
+    if(!ownerDoc.exists){ showToast("Owner ID not found — check with your owner"); return; }
+
+    const existingSnap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
+    if(!existingSnap.empty){
+      const ex = existingSnap.docs[0];
+      const exData = ex.data();
+      if(exData.ownerId === ownerId){
+        if(exData.status === "active"){ showToast("Already joined this owner — try logging in instead"); return; }
+        joinExistingDriverId = ex.id;
+      } else {
+        showToast("This mobile is already linked to a different owner"); return;
+      }
+    } else {
+      joinExistingDriverId = null;
+    }
+
+    joinOwnerId = ownerId; joinDriverMobile = mobile;
+    const ownerMobile = ownerDoc.data().mobile;
     const verifier = getRecaptcha("recaptcha-container-join");
     joinConfirmationResult = await auth.signInWithPhoneNumber(fullPhone(ownerMobile), verifier);
     document.getElementById("joinOtpHint").textContent =
@@ -271,17 +272,22 @@ async function driverLogin(){
   const mobile = normalizeMobile(document.getElementById("loginMobileInput").value);
   const pin = document.getElementById("loginPinInput").value.trim();
   if(mobile.length !== 10 || pin.length !== 4){ showToast("Enter mobile and 4-digit PIN"); return; }
-  const snap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
-  if(snap.empty){ showToast("No account found for this mobile"); return; }
-  const doc = snap.docs[0];
-  const d = doc.data();
-  if(d.status === "pending"){ showToast("Your join request is still waiting on owner approval"); return; }
-  if(d.status === "inactive"){ showToast("Your account is paused — contact your owner"); return; }
-  if(d.status === "deleted"){ showToast("This account is no longer active"); return; }
-  if(d.pin !== pin){ showToast("Incorrect PIN"); return; }
-  currentDriverId = doc.id;
-  localStorage.setItem("taxiapp_v3_driverId", currentDriverId);
-  await resolveDriverCabAndEnter();
+  try{
+    if(!auth.currentUser) await auth.signInAnonymously();
+    const snap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
+    if(snap.empty){ showToast("No account found for this mobile"); return; }
+    const doc = snap.docs[0];
+    const d = doc.data();
+    if(d.status === "pending"){ showToast("Your join request is still waiting on owner approval"); return; }
+    if(d.status === "inactive"){ showToast("Your account is paused — contact your owner"); return; }
+    if(d.status === "deleted"){ showToast("This account is no longer active"); return; }
+    if(d.pin !== pin){ showToast("Incorrect PIN"); return; }
+    currentDriverId = doc.id;
+    localStorage.setItem("taxiapp_v3_driverId", currentDriverId);
+    await resolveDriverCabAndEnter();
+  }catch(err){
+    showToast("Login failed: " + (err.message || "try again"));
+  }
 }
 async function resolveDriverCabAndEnter(){
   const assignSnap = await db.collection("driverCabAssignments")
@@ -306,10 +312,11 @@ let forgotConfirmationResult = null, forgotDriverId = null;
 async function sendForgotPinOtp(){
   const mobile = normalizeMobile(document.getElementById("forgotMobileInput").value);
   if(mobile.length !== 10){ showToast("Enter a valid 10-digit mobile number"); return; }
-  const snap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
-  if(snap.empty){ showToast("No account found for this mobile"); return; }
-  forgotDriverId = snap.docs[0].id;
   try{
+    if(!auth.currentUser) await auth.signInAnonymously();
+    const snap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
+    if(snap.empty){ showToast("No account found for this mobile"); return; }
+    forgotDriverId = snap.docs[0].id;
     const verifier = getRecaptcha("recaptcha-container-forgot");
     forgotConfirmationResult = await auth.signInWithPhoneNumber(fullPhone(mobile), verifier);
     showAuthScreen("screen_forgotPinOtp");
