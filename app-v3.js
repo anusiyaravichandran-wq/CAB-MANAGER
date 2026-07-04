@@ -672,6 +672,9 @@ async function importBackup(event){
 }
 
 /* ===================== LOGOUT ===================== */
+function confirmLogout(){
+  if(confirm("Log out of this account on this device?")) logout();
+}
 function logout(){
   localStorage.removeItem("taxiapp_v3_ownerId");
   localStorage.removeItem("taxiapp_v3_driverId");
