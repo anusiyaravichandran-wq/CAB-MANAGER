@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>டாக்ஸி கணக்கு | Taxi Tracker</title>
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+:root{
+  --bg:#0f172a; --bg2:#1e293b; --card:#1e293b; --border:#334155;
+  --accent:#f59e0b; --accent2:#fbbf24; --green:#22c55e; --red:#ef4444;
+  --text:#f1f5f9; --muted:#94a3b8; --blue:#3b82f6;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg); color:var(--text); padding-bottom:70px;
+  -webkit-tap-highlight-color:transparent;
+}
+.screen{display:none; padding:16px; max-width:600px; margin:0 auto;}
+.screen.active{display:block;}
+h1,h2,h3{font-weight:700;}
+h1{font-size:22px;} h2{font-size:18px; margin-bottom:12px;}
+.app-header{
+  position:sticky; top:0; background:var(--bg); z-index:10; padding:16px;
+  display:flex; justify-content:space-between; align-items:center;
+  border-bottom:1px solid var(--border);
+}
+.app-header .title{font-size:18px; font-weight:700; display:flex; flex-direction:column;}
+.app-header .title small{color:var(--muted); font-weight:400; font-size:12px;}
+.icon-btn{
+  background:var(--bg2); border:1px solid var(--border); color:var(--text);
+  border-radius:10px; padding:8px 12px; font-size:13px; cursor:pointer;
+}
+.lang-toggle{display:flex; gap:4px;}
+.lang-toggle button{
+  background:var(--bg2); border:1px solid var(--border); color:var(--muted);
+  padding:6px 10px; border-radius:8px; font-size:12px; cursor:pointer;
+}
+.lang-toggle button.on{background:var(--accent); color:#000; border-color:var(--accent);}
+
+/* Login */
+.login-wrap{
+  min-height:100vh; display:flex; flex-direction:column; justify-content:center;
+  align-items:center; padding:24px;
+}
+.login-card{
+  background:var(--card); border:1px solid var(--border); border-radius:18px;
+  padding:28px 24px; width:100%; max-width:360px; text-align:center;
+}
+.login-card .emoji{font-size:42px; margin-bottom:8px;}
+.login-card h1{font-size:22px; margin-bottom:4px;}
+.login-card p{color:var(--muted); font-size:13px; margin-bottom:20px;}
+.role-pick{display:flex; gap:10px; margin-bottom:18px;}
+.role-pick button{
+  flex:1; padding:16px 8px; border-radius:14px; border:1.5px solid var(--border);
+  background:var(--bg2); color:var(--text); font-size:14px; font-weight:600; cursor:pointer;
+}
+.role-pick button.sel{border-color:var(--accent); background:rgba(245,158,11,0.15); color:var(--accent2);}
+.role-pick button .e{display:block; font-size:24px; margin-bottom:6px;}
+input[type=password], input[type=text], input[type=number], select, input[type=date]{
+  width:100%; padding:13px 14px; border-radius:12px; border:1.5px solid var(--border);
+  background:var(--bg2); color:var(--text); font-size:16px; margin-bottom:12px;
+}
+input::placeholder{color:var(--muted);}
+.btn{
+  width:100%; padding:14px; border-radius:12px; border:none; font-size:15px;
+  font-weight:700; cursor:pointer; background:var(--accent); color:#1c1206;
+}
+.btn.secondary{background:var(--bg2); color:var(--text); border:1.5px solid var(--border);}
+.btn.green{background:var(--green); color:#06210f;}
+.btn.outline-red{background:transparent; border:1.5px solid var(--red); color:var(--red);}
+.err{color:var(--red); font-size:13px; margin:-4px 0 12px;}
+
+/* Tabs */
+.tabbar{
+  position:fixed; bottom:0; left:0; right:0; background:var(--bg2);
+  border-top:1px solid var(--border); display:flex; z-index:20;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.tabbar button{
+  flex:1; background:none; border:none; color:var(--muted); padding:10px 4px 8px;
+  font-size:11px; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;
+}
+.tabbar button .e{font-size:19px;}
+.tabbar button.active{color:var(--accent2);}
+
+/* Cards & generic */
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:14px;
+  padding:16px; margin-bottom:14px;
+}
+.row{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
+.row:last-child{margin-bottom:0;}
+.row .lbl{color:var(--muted); font-size:13px;}
+.row .val{font-weight:700; font-size:14px;}
+label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; margin-top:10px;}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.section-title{font-size:13px; color:var(--accent2); font-weight:700; margin:18px 0 8px; text-transform:uppercase; letter-spacing:.5px;}
+.stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;}
+.stat{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px;}
+.stat .n{font-size:20px; font-weight:800;}
+.stat .l{font-size:11.5px; color:var(--muted); margin-top:2px;}
+.badge{padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700;}
+.badge.paid{background:rgba(34,197,94,.18); color:var(--green);}
+.badge.unpaid{background:rgba(239,68,68,.18); color:var(--red);}
+.badge.leave{background:rgba(148,163,184,.18); color:var(--muted);}
+.history-item{
+  background:var(--card); border:1px solid var(--border); border-radius:14px;
+  padding:14px; margin-bottom:10px; cursor:pointer;
+}
+.history-item .top{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+.history-item .date{font-weight:700; font-size:14px;}
+.history-item .sub{display:flex; flex-wrap:wrap; gap:10px; font-size:12px; color:var(--muted);}
+.fab{
+  position:fixed; bottom:80px; right:18px; background:var(--accent); color:#1c1206;
+  width:54px; height:54px; border-radius:50%; border:none; font-size:26px; font-weight:700;
+  box-shadow:0 6px 16px rgba(0,0,0,.4); z-index:15; cursor:pointer;
+}
+.toast{
+  position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--green);
+  color:#06210f; padding:10px 18px; border-radius:30px; font-size:13px; font-weight:700;
+  z-index:100; opacity:0; transition:opacity .3s; pointer-events:none;
+}
+.toast.show{opacity:1;}
+.pay-split{display:flex; gap:8px;}
+.muted-small{font-size:11.5px; color:var(--muted); margin-top:-6px; margin-bottom:10px;}
+.empty{text-align:center; color:var(--muted); padding:40px 10px; font-size:13px;}
+.modal-bg{
+  position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:50; display:none;
+  align-items:flex-end; justify-content:center;
+}
+.modal-bg.show{display:flex;}
+.modal{
+  background:var(--bg2); border-radius:18px 18px 0 0; padding:20px; width:100%; max-width:600px;
+  max-height:85vh; overflow-y:auto;
+}
+.modal-handle{width:40px; height:4px; background:var(--border); border-radius:4px; margin:0 auto 14px;}
+.divider{height:1px; background:var(--border); margin:14px 0;}
+.profit-pos{color:var(--green);} .profit-neg{color:var(--red);}
+
+/* Other Expenses (repeatable rows) */
+.exp-row{display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;}
+.exp-row input{margin-bottom:0;}
+.exp-row .exp-amt{flex:0 0 90px;}
+.exp-row .exp-desc{flex:1;}
+.exp-row .exp-remove{
+  flex:0 0 38px; height:46px; border-radius:12px; border:1.5px solid var(--border);
+  background:var(--bg2); color:var(--red); font-size:18px; cursor:pointer; font-weight:700;
+}
+.btn-add-exp{
+  width:100%; padding:11px; border-radius:12px; border:1.5px dashed var(--border);
+  background:transparent; color:var(--accent2); font-size:13px; font-weight:700; cursor:pointer; margin-top:2px;
+}
+.exp-total-row{display:flex; justify-content:space-between; font-size:12.5px; color:var(--muted); margin-top:8px;}
+
+/* Payout history item actions */
+.history-item .actions{display:flex; gap:8px; margin-top:10px;}
+.history-item .actions button{
+  flex:1; padding:9px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;
+  border:1.5px solid var(--border); background:var(--bg2); color:var(--text);
+}
+.history-item .actions .share-btn{border-color:var(--green); color:var(--green);}
+
+/* Share receipt template (rendered off-screen, captured as image) */
+#shareReceipt{
+  position:fixed; left:-9999px; top:0; width:380px; background:#ffffff; color:#111827;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; padding:22px;
+}
+#shareReceipt .sr-head{text-align:center; margin-bottom:14px;}
+#shareReceipt .sr-head .sr-app{font-size:14px; font-weight:800; color:#0f172a;}
+#shareReceipt .sr-head .sr-date{font-size:20px; font-weight:800; margin-top:4px; color:#0f172a;}
+#shareReceipt .sr-row{display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid #e5e7eb; color:#374151;}
+#shareReceipt .sr-row span:last-child{font-weight:700; color:#111827;}
+#shareReceipt .sr-final{display:flex; justify-content:space-between; margin-top:12px; padding-top:12px; border-top:2px solid #111827;}
+#shareReceipt .sr-final span:first-child{font-size:14px; font-weight:700; color:#111827;}
+#shareReceipt .sr-final span:last-child{font-size:22px; font-weight:800; color:#16a34a;}
+#shareReceipt .sr-status{text-align:center; margin-top:10px; font-size:12px; font-weight:700; padding:5px; border-radius:8px;}
+#shareReceipt .sr-handover-title{font-size:11px; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-top:14px; margin-bottom:4px;}
+
+/* Dashboard picker rows */
+.dash-head-row{display:flex; justify-content:space-between; align-items:center; margin:18px 0 8px;}
+.dash-head-row input[type=date], .dash-head-row input[type=month]{
+  width:auto; padding:8px 10px; font-size:13px; margin-bottom:0;
+}
+
+/* Export toggle */
+.export-toggle{display:flex; gap:8px; margin-bottom:14px;}
+.export-toggle button{
+  flex:1; padding:10px; border-radius:12px; border:1.5px solid var(--border);
+  background:var(--bg2); color:var(--muted); font-size:13px; font-weight:700; cursor:pointer;
+}
+.export-toggle button.on{border-color:var(--accent); background:rgba(245,158,11,0.15); color:var(--accent2);}
+.otp-input{letter-spacing:8px; font-size:20px; text-align:center; font-weight:700;}
+.link-btn{background:none; border:none; color:var(--accent2); font-size:13px; cursor:pointer; margin-top:12px; text-decoration:underline; padding:0; display:block; width:100%; text-align:center;}
+.owner-id-badge{
+  display:inline-block; background:rgba(245,158,11,.15); border:1px solid var(--accent);
+  color:var(--accent2); font-weight:800; font-size:13px; padding:6px 12px; border-radius:10px; margin-bottom:6px;
+}
+.cab-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;}
+.cab-card{
+  background:var(--bg); border:1.5px solid var(--border); border-radius:12px; padding:14px;
+  cursor:pointer; text-align:center;
+}
+.cab-card.active-status{border-color:var(--green);}
+.cab-card .reg{font-weight:800; font-size:14px;}
+.cab-card .stat{font-size:11px; color:var(--muted); margin-top:4px;}
+.driver-row{
+  display:flex; justify-content:space-between; align-items:center; padding:12px;
+  border:1px solid var(--border); border-radius:12px; margin-bottom:10px; background:var(--bg);
+  flex-wrap:wrap; gap:8px;
+}
+.driver-row .info{flex:1; min-width:160px;}
+.driver-row .info .name{font-weight:700; font-size:14px;}
+.driver-row .info .sub{font-size:11.5px; color:var(--muted); margin-top:2px;}
+.driver-row .actions{display:flex; gap:6px; align-items:center;}
+.status-pill{font-size:10.5px; font-weight:800; padding:3px 8px; border-radius:8px; text-transform:uppercase;}
+.status-pill.active{background:rgba(22,163,74,.18); color:#4ade80;}
+.status-pill.inactive{background:rgba(148,163,184,.18); color:var(--muted);}
+.status-pill.pending{background:rgba(245,158,11,.18); color:var(--accent2);}
+.toggle-switch{
+  width:40px; height:22px; border-radius:20px; background:var(--border); position:relative; cursor:pointer; border:none; flex-shrink:0;
+}
+.toggle-switch.on{background:var(--green);}
+.toggle-switch .knob{
+  position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff; transition:left .15s;
+}
+.toggle-switch.on .knob{left:20px;}
+.assign-select{width:100%; padding:10px; border-radius:10px; border:1.5px solid var(--border); background:var(--bg); color:var(--text); font-size:13px; margin-top:8px;}
+.btn.danger{background:var(--red); color:#fff;}
+.btn.small{width:auto; padding:8px 14px; font-size:12px; margin-top:0;}
+#recaptcha-container-owner, #recaptcha-container-join, #recaptcha-container-forgot{margin-top:8px;}
+</style>
+</head>
+<body>
+
+<!-- ============ OWNER: mobile → OTP ============ -->
+<div id="screen_ownerMobile" class="screen active">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="emoji">🚖</div>
+      <h1 id="t_appname">வாடகை டாக்ஸி கணக்கு</h1>
+      <p id="t_tagline">Taxi Revenue & Payout Tracker</p>
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Owner Mobile Number</label>
+      <input type="tel" id="ownerMobileInput" placeholder="10-digit mobile number" maxlength="10">
+      <button class="btn" onclick="sendOwnerOtp()">Send OTP</button>
+      <div id="recaptcha-container-owner"></div>
+      <button class="link-btn" onclick="goDriverStart()" style="margin-top:14px;">Login as Driver instead →</button>
+      <div class="lang-toggle" style="justify-content:center; margin-top:18px;">
+        <button id="langTaBtn" onclick="setLang('ta')">தமிழ்</button>
+        <button id="langEnBtn" class="on" onclick="setLang('en')">English</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ OWNER: verify OTP ============ -->
+<div id="screen_ownerOtp" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="emoji">🔐</div>
+      <h1>Verify OTP</h1>
+      <p id="ownerOtpSentTo">Code sent to your mobile</p>
+      <input type="text" id="ownerOtpInput" class="otp-input" maxlength="6" inputmode="numeric" placeholder="6-digit OTP">
+      <button class="btn" onclick="verifyOwnerOtp()">Verify &amp; Continue</button>
+      <button class="link-btn" onclick="backToOwnerMobile()">← Change number</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRIVER: choose join or login ============ -->
+<div id="screen_driverStart" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="emoji">🚖</div>
+      <h1>Taxi Tracker</h1>
+      <p id="t_driver">Driver</p>
+      <button class="btn" onclick="goDriverLoginScreen()" id="t_loginExisting">Login (already joined)</button>
+      <button class="btn secondary" onclick="goDriverJoinScreen()" id="t_joinOwner">Join an Owner (first time)</button>
+      <button class="link-btn" onclick="goOwnerMobile()" style="margin-top:14px;">← Owner Login instead</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRIVER JOIN: Owner ID + mobile ============ -->
+<div id="screen_driverJoin" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Join Owner</h1>
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Owner ID</label>
+      <input type="text" id="joinOwnerIdInput" placeholder="Owner ID given by your owner">
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Your Mobile Number</label>
+      <input type="tel" id="joinDriverMobileInput" placeholder="10-digit mobile number" maxlength="10">
+      <button class="btn" onclick="submitJoinRequest()">Send Join Request</button>
+      <div class="muted-small" style="margin-top:10px;">An OTP will be sent to the <b>owner's</b> phone to approve this request. Ask your owner for the code.</div>
+      <div id="recaptcha-container-join"></div>
+      <button class="link-btn" onclick="goDriverStart()">← Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRIVER JOIN: OTP (owner's phone) ============ -->
+<div id="screen_driverJoinOtp" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Enter Approval Code</h1>
+      <div class="muted-small" id="joinOtpHint">Ask your owner for the OTP sent to their phone.</div>
+      <input type="text" id="joinOtpInput" class="otp-input" maxlength="6" inputmode="numeric" placeholder="6-digit OTP" style="margin-top:14px;">
+      <button class="btn" onclick="verifyJoinOtp()">Verify</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRIVER JOIN: set PIN ============ -->
+<div id="screen_driverSetPin" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Set Your Login PIN</h1>
+      <div class="muted-small">You'll use this PIN (with your mobile) to log in daily — no OTP needed after this.</div>
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">New PIN (4 digits)</label>
+      <input type="text" id="newPinInput" class="otp-input" maxlength="4" inputmode="numeric">
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Confirm PIN</label>
+      <input type="text" id="newPinConfirmInput" class="otp-input" maxlength="4" inputmode="numeric">
+      <button class="btn" onclick="setDriverPin()">Save PIN &amp; Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRIVER: daily login (mobile + PIN) ============ -->
+<div id="screen_driverLogin" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="emoji">🚖</div>
+      <h1>Driver Login</h1>
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Mobile Number</label>
+      <input type="tel" id="loginMobileInput" placeholder="10-digit mobile number" maxlength="10">
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">PIN</label>
+      <input type="text" id="loginPinInput" class="otp-input" maxlength="4" inputmode="numeric">
+      <button class="btn" onclick="driverLogin()">Login</button>
+      <button class="link-btn" onclick="goForgotPin()">Forgot PIN?</button>
+      <button class="link-btn" onclick="goDriverStart()">← Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRIVER: forgot PIN ============ -->
+<div id="screen_forgotPinMobile" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Reset PIN</h1>
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Your Mobile Number</label>
+      <input type="tel" id="forgotMobileInput" placeholder="10-digit mobile number" maxlength="10">
+      <button class="btn" onclick="sendForgotPinOtp()">Send OTP</button>
+      <div id="recaptcha-container-forgot"></div>
+      <button class="link-btn" onclick="goDriverLoginScreen()">← Back</button>
+    </div>
+  </div>
+</div>
+<div id="screen_forgotPinOtp" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Verify OTP</h1>
+      <input type="text" id="forgotOtpInput" class="otp-input" maxlength="6" inputmode="numeric" placeholder="6-digit OTP">
+      <button class="btn" onclick="verifyForgotPinOtp()">Verify</button>
+    </div>
+  </div>
+</div>
+<div id="screen_forgotPinReset" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Set New PIN</h1>
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">New PIN (4 digits)</label>
+      <input type="text" id="resetPinInput" class="otp-input" maxlength="4" inputmode="numeric">
+      <label style="text-align:left; display:block; font-size:13px; color:var(--muted); margin:14px 0 6px;">Confirm PIN</label>
+      <input type="text" id="resetPinConfirmInput" class="otp-input" maxlength="4" inputmode="numeric">
+      <button class="btn" onclick="resetDriverPin()">Save New PIN</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRIVER: waiting for cab assignment ============ -->
+<div id="screen_driverWaiting" class="screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="emoji">⏳</div>
+      <h1>Almost there</h1>
+      <p id="t_waitingForCab">Waiting for your owner to assign you a cab.</p>
+      <button class="btn" onclick="recheckDriverAssignment()" id="t_checkAgain">Check Again</button>
+      <button class="link-btn" onclick="logout()">Logout</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="mainApp" style="display:none;">
+  <div class="app-header">
+    <div class="title">
+      <span id="headerTitle">Dashboard</span>
+      <small id="headerSub"></small>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <div class="lang-toggle">
+        <button id="langTaBtn2" onclick="setLang('ta')">த</button>
+        <button id="langEnBtn2" class="on" onclick="setLang('en')">EN</button>
+      </div>
+      <button class="icon-btn" onclick="openSettings()">⚙️</button>
+      <button class="icon-btn" onclick="logout()">⎋</button>
+    </div>
+  </div>
+
+  <!-- Cab selector for Owner's Dashboard/Payout/Maintenance -->
+  <div id="ownerCabSelectorBar" style="display:none; align-items:center; gap:10px; padding:10px 16px; background:var(--bg2); border-bottom:1px solid var(--border);">
+    <label style="margin:0; font-size:12.5px; white-space:nowrap;" id="t_ownerCabSelectLabel">Viewing Cab</label>
+    <select id="ownerCabSelect" onchange="onOwnerCabChange()" style="flex:1; margin:0; padding:8px 10px;"></select>
+  </div>
+
+  <!-- SETTINGS (owner + driver) -->
+  <div id="screen_settings" class="screen">
+    <div id="settingsOwnerBlock" style="display:none;">
+      <div class="card center">
+        <div class="owner-id-badge" id="settingsOwnerId">Owner ID: —</div>
+      </div>
+      <div class="card">
+        <div class="section-title" id="t_careSection">Customer Care</div>
+        <div class="muted-small">Need help? Call us:</div>
+        <a href="tel:8667033939" class="btn secondary" style="display:block; text-align:center; text-decoration:none; margin-top:10px;">📞 8667033939</a>
+      </div>
+      <div class="card">
+        <div class="section-title" id="t_backupSection">Backup Data</div>
+        <div class="muted-small">Export everything under your account — cabs, drivers, and all daily entries &amp; maintenance records — as a file you can keep safe or restore later.</div>
+        <button class="btn secondary" style="margin-top:12px;" onclick="exportBackup()">⬇️ <span id="t_exportBackup">Export Backup</span></button>
+        <label class="btn secondary" style="margin-top:10px; display:block; text-align:center; cursor:pointer;">
+          ⬆️ <span id="t_importBackup">Import Backup</span>
+          <input type="file" id="importBackupFile" accept="application/json" style="display:none;" onchange="importBackup(event)">
+        </label>
+        <div class="muted-small" style="margin-top:8px;">Importing merges into your existing data — matching records get overwritten, everything else stays.</div>
+      </div>
+    </div>
+    <div id="settingsDriverBlock" style="display:none;">
+      <div class="card">
+        <div class="section-title" id="t_careSection2">Customer Care</div>
+        <div class="muted-small">Need help? Call us:</div>
+        <a href="tel:8667033939" class="btn secondary" style="display:block; text-align:center; text-decoration:none; margin-top:10px;">📞 8667033939</a>
+      </div>
+    </div>
+    <button class="btn secondary" style="margin-top:6px;" onclick="closeSettings()">← Back</button>
+  </div>
+
+  <div id="screen_cabs" class="screen">
+    <div class="card center">
+      <div class="owner-id-badge" id="ownerIdBadge">Owner ID: —</div>
+    </div>
+    <div class="card">
+      <div class="section-title">Your Cabs</div>
+      <div class="cab-grid" id="cabGrid"></div>
+      <div class="empty" id="cabEmptyMsg" style="display:none;">No cabs added yet</div>
+    </div>
+    <div class="card">
+      <div class="section-title">Add Cab</div>
+      <label>Registration Number / Cab ID</label>
+      <input type="text" id="newCabRegInput" placeholder="e.g. TN37AB1234">
+      <button class="btn" onclick="addCab()">+ Add Cab</button>
+    </div>
+  </div>
+
+  <!-- OWNER: Drivers -->
+  <div id="screen_drivers" class="screen">
+    <div class="card">
+      <div class="section-title">Drivers</div>
+      <div id="driversList"></div>
+      <div class="empty" id="driversEmptyMsg" style="display:none;">No drivers joined yet</div>
+    </div>
+    <div class="card">
+      <div class="section-title">Share to Onboard a Driver</div>
+      <div class="muted-small">Give this Owner ID to your driver — they'll use it to send a join request.</div>
+      <div class="owner-id-badge" style="margin-top:10px;" id="ownerIdBadge2">Owner ID: —</div>
+    </div>
+  </div>
+
+  <!-- DRIVER: Daily Entry -->
+  <div id="screen_entry" class="screen">
+    <div class="card">
+      <label id="t_date">Date</label>
+      <input type="date" id="entDate">
+
+      <div class="row" style="margin-top:6px;">
+        <span id="t_leave" class="lbl">Mark today as Leave</span>
+        <input type="checkbox" id="leaveToggle" onchange="toggleLeaveMode()" style="width:20px;height:20px;">
+      </div>
+    </div>
+
+    <div id="entryFields">
+      <div class="card">
+        <div class="section-title" id="t_revsec">Revenue</div>
+        <label id="t_trip">Trip Payment (Total Fare, as per bill)</label>
+        <input type="number" id="tripPayment" placeholder="0">
+        <label id="t_online">Online / RedTaxi Credit</label>
+        <input type="number" id="onlinePayment" placeholder="0">
+        <label id="t_netearnings">Net Earnings (as shown in RedTaxi app)</label>
+        <input type="number" id="netEarnings" placeholder="0">
+        <div class="muted-small" id="t_netearningshint">Base fare only, before GST/convenience fee — RedTaxi shows this separately from Revenue. Only used if your owner has chosen Net Earnings as the salary basis.</div>
+        <label id="t_tollbill">Toll Charges (as per bill)</label>
+        <input type="number" id="tollCharge" placeholder="0">
+        <div class="muted-small" id="tollGstReadout">Incl. GST 5%: ₹0</div>
+        <div class="muted-small" id="t_tollbillhint">Enter the base Toll Charges line from the customer's bill (not the GST line) — the app adds 5% GST automatically and excludes the total only when calculating driver salary.</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title" id="t_expsec">Expenses</div>
+        <div class="grid2">
+          <div><label id="t_fuelcash">Fuel (Cash)</label><input type="number" id="fuelCash" placeholder="0"></div>
+          <div><label id="t_fuelcard">Fuel (Card)</label><input type="number" id="fuelCard" placeholder="0"></div>
+        </div>
+        <div class="grid2">
+          <div><label id="t_parking">Parking (cash)</label><input type="number" id="parking" placeholder="0"></div>
+          <div><label id="t_tollcollected">Toll Collected (FASTag)</label><input type="number" id="tollCollected" placeholder="0"></div>
+        </div>
+
+        <label id="t_otherexp" style="margin-top:16px;">Other Expenses</label>
+        <div id="otherExpList"></div>
+        <button type="button" class="btn-add-exp" onclick="addExpenseRow()">+ <span id="t_addexpense">Add Expense</span></button>
+        <div class="exp-total-row"><span id="t_otherexptotal">Other Expenses Total</span><span id="otherExpTotalVal">₹0</span></div>
+      </div>
+
+      <div class="card" id="liveCalcCard">
+        <div class="section-title" id="t_calcsec">Auto Calculated</div>
+        <div class="row"><span class="lbl" id="t_totalrev">Total Revenue</span><span class="val" id="calcRevenue">₹0</span></div>
+        <div class="row"><span class="lbl" id="t_salary30">Driver Salary</span><span class="val" id="calcSalary">₹0</span></div>
+        <div class="muted-small" id="salaryPctHint" style="margin-top:-6px;">Driver Salary is calculated at 30% (set by your owner)</div>
+        <div class="muted-small" id="t_salarybasehint" style="margin-top:-2px;">Calculated on Total Revenue minus Toll-in-Bill</div>
+        <div class="divider"></div>
+        <div class="row"><span class="lbl" id="t_addtoll">+ Toll Collected (FASTag)</span><span class="val" id="calcTollCollected" style="color:var(--green);">₹0</span></div>
+        <div class="row"><span class="lbl" id="t_deduct">− Online, Fuel(Cash), Parking, Other Exp.</span><span class="val" id="calcDeduct" style="color:var(--red);">₹0</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="lbl" id="t_owneramt">Owner Amount</span><span class="val" style="color:var(--accent2); font-size:17px;" id="calcOwnerAmt">₹0</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title" id="t_paysec">Owner Payment Status</div>
+      <select id="payStatus" onchange="togglePaySplit()">
+        <option value="unpaid" id="t_unpaid">Unpaid</option>
+        <option value="paid" id="t_paid">Paid</option>
+      </select>
+      <div id="paySplitFields" style="display:none;">
+        <div class="pay-split">
+          <div style="flex:1;"><label id="t_cashpaid">Cash Paid</label><input type="number" id="cashPaid" placeholder="0"></div>
+          <div style="flex:1;"><label id="t_upipaid">UPI Paid</label><input type="number" id="upiPaid" placeholder="0"></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn" onclick="saveEntry()" id="t_saveentry" style="margin-bottom:20px;">Save Entry</button>
+  </div>
+
+  <!-- DRIVER: MY DASHBOARD (income + cab revenue, no owner financials) -->
+  <div id="screen_mydash" class="screen">
+    <div class="section-title" id="t_today">Today</div>
+    <div class="stat-grid">
+      <div class="stat"><div class="n" id="my_todayRev">₹0</div><div class="l" id="t_revenue">Revenue</div></div>
+      <div class="stat"><div class="n" id="my_todaySalary">₹0</div><div class="l" id="t_myincome">My Income</div></div>
+    </div>
+
+    <div class="section-title" id="t_thismonth" style="margin-top:18px;">This Month</div>
+    <div class="stat-grid">
+      <div class="stat"><div class="n" id="my_monthRev">₹0</div><div class="l" id="t_totalrevenue">Total Revenue</div></div>
+      <div class="stat"><div class="n" id="my_monthSalary">₹0</div><div class="l" id="t_myincome2">My Income</div></div>
+    </div>
+    <div class="muted-small" id="my_salaryPctNote" style="margin-top:10px; text-align:center;">At 30% (set by your owner)</div>
+  </div>
+
+  <!-- PAYOUT DETAILS TAB -->
+  <div id="screen_payout" class="screen">
+    <div class="card">
+      <div class="row">
+        <span class="lbl" id="t_outstanding">Total Outstanding (Unpaid)</span>
+        <span class="val" style="color:var(--red); font-size:16px;" id="outstandingAmt">₹0</span>
+      </div>
+    </div>
+    <div id="payoutList"></div>
+  </div>
+
+  <!-- MAINTENANCE TAB -->
+  <div id="screen_maint" class="screen">
+    <div class="card">
+      <label id="t_monthpick">Month</label>
+      <input type="month" id="maintMonth" onchange="loadMaintenance()">
+    </div>
+    <div class="card">
+      <div class="section-title" id="t_kmsec">Kilometers</div>
+      <div class="grid2">
+        <div><label id="t_startkm">Start KM</label><input type="number" id="m_startKm" placeholder="0"></div>
+        <div><label id="t_endkm">End KM</label><input type="number" id="m_endKm" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="grid2">
+        <div><label>EMI</label><input type="number" id="m_emi" placeholder="0"></div>
+        <div><label id="t_insurance">Insurance</label><input type="number" id="m_insurance" placeholder="0"></div>
+        <div><label id="t_tyre">Tyre Cost</label><input type="number" id="m_tyre" placeholder="0"></div>
+        <div><label id="t_redcomm">RedTaxi Commission</label><input type="number" id="m_redtaxi" placeholder="0"></div>
+        <div><label id="t_maintbudget">Maintenance (Budget)</label><input type="number" id="m_budget" placeholder="0"></div>
+        <div><label id="t_maintactual">Actual Maintenance</label><input type="number" id="m_actual" placeholder="0"></div>
+        <div><label id="t_others">Others</label><input type="number" id="m_others" placeholder="0"></div>
+      </div>
+      <label id="t_notes">Notes</label>
+      <input type="text" id="m_notes" placeholder="e.g. tyre puncture, service center">
+      <button class="btn" style="margin-top:6px;" onclick="saveMaintenance()" id="t_savemaint">Save Maintenance</button>
+    </div>
+    <div class="muted-small" id="t_commhint">RedTaxi settles commission 3x/month: 1–10 (paid 13th), 11–20 (paid 23rd), 21–end (paid 3rd next month). Enter the total commission for the month here.</div>
+  </div>
+
+
+  <!-- DASHBOARD TAB -->
+  <div id="screen_dash" class="screen">
+    <div class="dash-head-row">
+      <div class="section-title" id="t_today" style="margin:0;">Today</div>
+      <input type="date" id="dashDayPicker" style="width:auto; margin:0;">
+    </div>
+    <div class="stat-grid">
+      <div class="stat"><div class="n" id="d_todayRev">₹0</div><div class="l" id="t_revenue">Revenue</div></div>
+      <div class="stat"><div class="n" id="d_todayFuel">₹0</div><div class="l" id="t_fuel">Fuel</div></div>
+      <div class="stat"><div class="n" id="d_todaySalary">₹0</div><div class="l" id="t_salary">Driver Salary</div></div>
+      <div class="stat"><div class="n" id="d_todayOwner">₹0</div><div class="l" id="t_owneramount">Owner Amount</div></div>
+    </div>
+    <div class="card" style="margin-bottom:18px;">
+      <div class="row"><span class="lbl" id="t_status">Status</span><span id="d_todayStatus">—</span></div>
+    </div>
+
+    <div class="dash-head-row">
+      <div class="section-title" id="t_thismonth" style="margin:0;">This Month</div>
+      <input type="month" id="dashMonthPicker" style="width:auto; margin:0;">
+    </div>
+    <div class="stat-grid">
+      <div class="stat"><div class="n" id="d_mRev">₹0</div><div class="l" id="t_totalrevenue">Total Revenue</div></div>
+      <div class="stat"><div class="n" id="d_mKm">0</div><div class="l" id="t_kmdriven">KM Driven</div></div>
+      <div class="stat"><div class="n" id="d_mFuel">₹0</div><div class="l" id="t_fuel">Fuel</div></div>
+      <div class="stat"><div class="n" id="d_mSalary">₹0</div><div class="l" id="t_salary">Driver Salary</div></div>
+      <div class="stat"><div class="n" id="d_mComm">₹0</div><div class="l" id="t_redcomm">RedTaxi Commission</div></div>
+      <div class="stat"><div class="n" id="d_mFixed">₹0</div><div class="l" id="t_fixedcosts">EMI+Ins+Tyre+Maint+Others</div></div>
+    </div>
+    <div class="card" style="margin-bottom:18px;">
+      <div class="row"><span class="lbl" id="t_profit">Profit</span><span class="val" id="d_mProfit" style="font-size:17px;">₹0</span></div>
+      <div class="divider"></div>
+      <div class="row"><span class="lbl" id="t_paidtotal">Owner Amount Paid</span><span class="val" id="d_mPaid">₹0</span></div>
+      <div class="row"><span class="lbl" id="t_paidcash">— Cash</span><span class="val" id="d_mPaidCash">₹0</span></div>
+      <div class="row"><span class="lbl" id="t_paidupi">— UPI</span><span class="val" id="d_mPaidUpi">₹0</span></div>
+      <div class="divider"></div>
+      <div class="row"><span class="lbl" id="t_unpaidtotal">Unpaid (Outstanding)</span><span class="val" id="d_mUnpaid" style="color:var(--red);">₹0</span></div>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="section-title" id="t_reportsec">Reports &amp; Export</div>
+      <div class="export-toggle">
+        <button type="button" class="on" id="expModeDaily" onclick="setExportMode('daily')"><span id="t_expdaily">Daily (Range)</span></button>
+        <button type="button" id="expModeMonthly" onclick="setExportMode('monthly')"><span id="t_expmonthly">Monthly</span></button>
+      </div>
+
+      <div id="exportDailyFields">
+        <div class="grid2">
+          <div><label id="t_startdate">Start Date</label><input type="date" id="expStartDate"></div>
+          <div><label id="t_enddate">End Date</label><input type="date" id="expEndDate"></div>
+        </div>
+      </div>
+      <div id="exportMonthlyFields" style="display:none;">
+        <label id="t_reportmonth">Month</label>
+        <input type="month" id="expMonth">
+      </div>
+
+      <div class="grid2" style="margin-top:6px;">
+        <button type="button" class="btn secondary" onclick="exportReport('pdf')">📄 <span id="t_exportpdf">Export PDF</span></button>
+        <button type="button" class="btn secondary" onclick="exportReport('excel')">📊 <span id="t_exportexcel">Export Excel</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabbar" id="tabbar"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Edit modal -->
+<div class="modal-bg" id="editModalBg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div id="editModalContent"></div>
+  </div>
+</div>
+
+<!-- Hidden receipt template captured as an image for WhatsApp sharing -->
+<div id="shareReceipt"></div>
+
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script defer src="app-v3.js"></script>
+</body>
+</html>
