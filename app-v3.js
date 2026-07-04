@@ -139,7 +139,19 @@ function setLang(l){ currentLang = l; localStorage.setItem("lang", l); applyTran
 
 /* ===================== AUTH HELPERS ===================== */
 function normalizeMobile(raw){ return (raw||"").replace(/\D/g,"").slice(-10); }
-function genOwnerId(){ return "OWN" + Math.floor(100000 + Math.random()*900000); }
+// Sequential Owner IDs (OWN000001, OWN000002, ...) using a Firestore transaction
+// on a single counters/ownerId doc, so concurrent signups can't collide.
+async function nextOwnerId(){
+  const counterRef = db.collection("counters").doc("ownerId");
+  const nextNum = await db.runTransaction(async (tx)=>{
+    const snap = await tx.get(counterRef);
+    const current = snap.exists ? (snap.data().value || 0) : 0;
+    const next = current + 1;
+    tx.set(counterRef, { value: next }, { merge: true });
+    return next;
+  });
+  return "OWN" + String(nextNum).padStart(6, "0");
+}
 function nowTs(){ return Date.now(); }
 function showAuthScreen(fullId){
   document.querySelectorAll(".screen").forEach(s=>{ s.classList.remove("active"); s.classList.remove("show"); });
@@ -211,12 +223,7 @@ async function ownerSetPin(){
   }
 }
 async function createOwner(mobile, pin){
-  let ownerId;
-  for(let i=0;i<5;i++){
-    ownerId = genOwnerId();
-    const check = await db.collection("owners").doc(ownerId).get();
-    if(!check.exists) break;
-  }
+  const ownerId = await nextOwnerId();
   await db.collection("owners").doc(ownerId).set({ ownerId, mobile, pin, joinCode: genJoinCode(), createdAt: nowTs() });
   await db.collection("ownerMobileIndex").doc(mobile).set({ ownerId });
   currentOwnerId = ownerId;
