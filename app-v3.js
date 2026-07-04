@@ -12,6 +12,24 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
+// Guarantees a signed-in (anonymous) Firebase user before any Firestore read/write.
+// Firestore security rules require request.auth != null, so every login-screen
+// action (owner lookup, join-code check, driver login) must wait on this first —
+// otherwise the read silently fails and the screen looks frozen.
+let _authReadyPromise = null;
+function ensureAuth(){
+  if(!_authReadyPromise){
+    _authReadyPromise = new Promise((resolve, reject)=>{
+      const unsub = auth.onAuthStateChanged((user)=>{
+        unsub();
+        if(user) resolve(user);
+        else auth.signInAnonymously().then((cred)=> resolve(cred.user)).catch(reject);
+      });
+    });
+  }
+  return _authReadyPromise;
+}
+
 /* ===================== CONSTANTS ===================== */
 let currentCabId = null; // set after login: owner picks via cab selector, driver gets it from their active assignment
 let currentSalaryPct = 0.30; // default 30% — owner-editable per driver from the Drivers tab
@@ -141,40 +159,56 @@ async function ownerContinue(){
   const mobile = normalizeMobile(document.getElementById("ownerMobileInput").value);
   if(mobile.length !== 10){ showToast("Enter a valid 10-digit mobile number"); return; }
   currentOwnerMobile = mobile;
-  const indexDoc = await db.collection("ownerMobileIndex").doc(mobile).get();
-  if(indexDoc.exists){
-    currentOwnerId = indexDoc.data().ownerId;
-    document.getElementById("ownerPinMobileLabel").textContent = `Owner account for ${mobile}`;
-    document.getElementById("ownerPinInput").value = "";
-    showAuthScreen("screen_ownerEnterPin");
-  } else {
-    document.getElementById("ownerNewPinInput").value = "";
-    document.getElementById("ownerNewPinConfirmInput").value = "";
-    showAuthScreen("screen_ownerSetPin");
+  try{
+    await ensureAuth();
+    const indexDoc = await db.collection("ownerMobileIndex").doc(mobile).get();
+    if(indexDoc.exists){
+      currentOwnerId = indexDoc.data().ownerId;
+      document.getElementById("ownerPinMobileLabel").textContent = `Owner account for ${mobile}`;
+      document.getElementById("ownerPinInput").value = "";
+      showAuthScreen("screen_ownerEnterPin");
+    } else {
+      document.getElementById("ownerNewPinInput").value = "";
+      document.getElementById("ownerNewPinConfirmInput").value = "";
+      showAuthScreen("screen_ownerSetPin");
+    }
+  }catch(err){
+    console.error("ownerContinue failed:", err);
+    showToast("Couldn't reach the server — check connection and try again");
   }
 }
 async function ownerEnterPinSubmit(){
   const pin = document.getElementById("ownerPinInput").value.trim();
   if(pin.length !== 4){ showToast("Enter your 4-digit PIN"); return; }
-  const ownerDoc = await db.collection("owners").doc(currentOwnerId).get();
-  if(!ownerDoc.exists || ownerDoc.data().pin !== pin){ showToast("Incorrect PIN"); return; }
-  await auth.signInAnonymously().catch(()=>{});
-  localStorage.setItem("taxiapp_v3_ownerId", currentOwnerId);
-  currentUser = "owner";
-  currentCabId = null;
-  enterApp();
+  try{
+    await ensureAuth();
+    const ownerDoc = await db.collection("owners").doc(currentOwnerId).get();
+    if(!ownerDoc.exists || ownerDoc.data().pin !== pin){ showToast("Incorrect PIN"); return; }
+    localStorage.setItem("taxiapp_v3_ownerId", currentOwnerId);
+    currentUser = "owner";
+    currentCabId = null;
+    enterApp();
+  }catch(err){
+    console.error("ownerEnterPinSubmit failed:", err);
+    showToast("Couldn't reach the server — check connection and try again");
+  }
 }
 async function ownerSetPin(){
   const pin = document.getElementById("ownerNewPinInput").value.trim();
   const confirmPin = document.getElementById("ownerNewPinConfirmInput").value.trim();
   if(pin.length !== 4){ showToast("PIN must be 4 digits"); return; }
   if(pin !== confirmPin){ showToast("PINs don't match"); return; }
-  await createOwner(currentOwnerMobile, pin);
-  await auth.signInAnonymously().catch(()=>{});
-  localStorage.setItem("taxiapp_v3_ownerId", currentOwnerId);
-  currentUser = "owner";
-  currentCabId = null;
-  enterApp();
+  try{
+    await ensureAuth();
+    await createOwner(currentOwnerMobile, pin);
+    localStorage.setItem("taxiapp_v3_ownerId", currentOwnerId);
+    currentUser = "owner";
+    currentCabId = null;
+    enterApp();
+  }catch(err){
+    console.error("ownerSetPin failed:", err);
+    showToast("Couldn't reach the server — check connection and try again");
+  }
 }
 async function createOwner(mobile, pin){
   let ownerId;
@@ -198,27 +232,32 @@ async function submitJoinRequest(){
   if(!ownerId){ showToast("Enter the Owner ID"); return; }
   if(mobile.length !== 10){ showToast("Enter a valid 10-digit mobile number"); return; }
   if(!code){ showToast("Enter the Join Code from your owner"); return; }
-  const ownerDoc = await db.collection("owners").doc(ownerId).get();
-  if(!ownerDoc.exists){ showToast("Owner ID not found — check with your owner"); return; }
-  if((ownerDoc.data().joinCode||"").toUpperCase() !== code){ showToast("Incorrect Join Code — ask your owner for the current one"); return; }
+  try{
+    await ensureAuth();
+    const ownerDoc = await db.collection("owners").doc(ownerId).get();
+    if(!ownerDoc.exists){ showToast("Owner ID not found — check with your owner"); return; }
+    if((ownerDoc.data().joinCode||"").toUpperCase() !== code){ showToast("Incorrect Join Code — ask your owner for the current one"); return; }
 
-  const existingSnap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
-  if(!existingSnap.empty){
-    const ex = existingSnap.docs[0];
-    const exData = ex.data();
-    if(exData.ownerId === ownerId){
-      if(exData.status === "active"){ showToast("Already joined this owner — try logging in instead"); return; }
-      joinExistingDriverId = ex.id;
+    const existingSnap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
+    if(!existingSnap.empty){
+      const ex = existingSnap.docs[0];
+      const exData = ex.data();
+      if(exData.ownerId === ownerId){
+        if(exData.status === "active"){ showToast("Already joined this owner — try logging in instead"); return; }
+        joinExistingDriverId = ex.id;
+      } else {
+        showToast("This mobile is already linked to a different owner"); return;
+      }
     } else {
-      showToast("This mobile is already linked to a different owner"); return;
+      joinExistingDriverId = null;
     }
-  } else {
-    joinExistingDriverId = null;
-  }
 
-  joinOwnerId = ownerId; joinDriverMobile = mobile;
-  await auth.signInAnonymously().catch(()=>{});
-  showAuthScreen("screen_driverSetPin");
+    joinOwnerId = ownerId; joinDriverMobile = mobile;
+    showAuthScreen("screen_driverSetPin");
+  }catch(err){
+    console.error("submitJoinRequest failed:", err);
+    showToast("Couldn't reach the server — check connection and try again");
+  }
 }
 async function setDriverPin(){
   const pin = document.getElementById("newPinInput").value.trim();
@@ -226,15 +265,21 @@ async function setDriverPin(){
   if(pin.length !== 4){ showToast("PIN must be 4 digits"); return; }
   if(pin !== confirmPin){ showToast("PINs don't match"); return; }
   const driverData = { mobile: joinDriverMobile, ownerId: joinOwnerId, pin, status:"active", joinedAt: nowTs() };
-  if(joinExistingDriverId){
-    await db.collection("drivers").doc(joinExistingDriverId).set(driverData, {merge:true});
-  } else {
-    driverData.salaryPct = 0.30; // default 30%, owner can change from the Drivers tab
-    driverData.salaryBasis = "revenue"; // default basis, owner can switch to Net Earnings from the Drivers tab
-    await db.collection("drivers").add(driverData);
+  try{
+    await ensureAuth();
+    if(joinExistingDriverId){
+      await db.collection("drivers").doc(joinExistingDriverId).set(driverData, {merge:true});
+    } else {
+      driverData.salaryPct = 0.30; // default 30%, owner can change from the Drivers tab
+      driverData.salaryBasis = "revenue"; // default basis, owner can switch to Net Earnings from the Drivers tab
+      await db.collection("drivers").add(driverData);
+    }
+    showToast("Joined successfully! Log in with your mobile + PIN.");
+    goDriverLoginScreen();
+  }catch(err){
+    console.error("setDriverPin failed:", err);
+    showToast("Couldn't reach the server — check connection and try again");
   }
-  showToast("Joined successfully! Log in with your mobile + PIN.");
-  goDriverLoginScreen();
 }
 
 /* ===================== DRIVER DAILY LOGIN (mobile + PIN, no OTP) ===================== */
@@ -244,17 +289,23 @@ async function driverLogin(){
   const mobile = normalizeMobile(document.getElementById("loginMobileInput").value);
   const pin = document.getElementById("loginPinInput").value.trim();
   if(mobile.length !== 10 || pin.length !== 4){ showToast("Enter mobile and 4-digit PIN"); return; }
-  const snap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
-  if(snap.empty){ showToast("No account found for this mobile"); return; }
-  const doc = snap.docs[0];
-  const d = doc.data();
-  if(d.status === "pending"){ showToast("Your join request is still waiting on owner approval"); return; }
-  if(d.status === "inactive"){ showToast("Your account is paused — contact your owner"); return; }
-  if(d.status === "deleted"){ showToast("This account is no longer active"); return; }
-  if(d.pin !== pin){ showToast("Incorrect PIN"); return; }
-  currentDriverId = doc.id;
-  localStorage.setItem("taxiapp_v3_driverId", currentDriverId);
-  await resolveDriverCabAndEnter();
+  try{
+    await ensureAuth();
+    const snap = await db.collection("drivers").where("mobile","==",mobile).limit(1).get();
+    if(snap.empty){ showToast("No account found for this mobile"); return; }
+    const doc = snap.docs[0];
+    const d = doc.data();
+    if(d.status === "pending"){ showToast("Your join request is still waiting on owner approval"); return; }
+    if(d.status === "inactive"){ showToast("Your account is paused — contact your owner"); return; }
+    if(d.status === "deleted"){ showToast("This account is no longer active"); return; }
+    if(d.pin !== pin){ showToast("Incorrect PIN"); return; }
+    currentDriverId = doc.id;
+    localStorage.setItem("taxiapp_v3_driverId", currentDriverId);
+    await resolveDriverCabAndEnter();
+  }catch(err){
+    console.error("driverLogin failed:", err);
+    showToast("Couldn't reach the server — check connection and try again");
+  }
 }
 async function resolveDriverCabAndEnter(){
   const assignSnap = await db.collection("driverCabAssignments")
@@ -1297,18 +1348,22 @@ window.addEventListener("load", ()=>{
   applyTranslations();
   const savedOwnerId = localStorage.getItem("taxiapp_v3_ownerId");
   const savedDriverId = localStorage.getItem("taxiapp_v3_driverId");
-  if(savedOwnerId){
-    currentOwnerId = savedOwnerId;
-    currentUser = "owner";
-    auth.signInAnonymously().then(()=> enterApp()).catch(()=>{ currentUser = null; currentOwnerId = null; });
-  } else if(savedDriverId){
-    currentDriverId = savedDriverId;
-    auth.signInAnonymously().then(async ()=>{
-      const doc = await db.collection("drivers").doc(currentDriverId).get();
-      if(!doc.exists || doc.data().status !== "active"){ logout(); return; }
-      await resolveDriverCabAndEnter();
-    }).catch(()=>{ currentUser = null; currentDriverId = null; });
-  }
+  ensureAuth().then(()=>{
+    if(savedOwnerId){
+      currentOwnerId = savedOwnerId;
+      currentUser = "owner";
+      enterApp();
+    } else if(savedDriverId){
+      currentDriverId = savedDriverId;
+      db.collection("drivers").doc(currentDriverId).get().then(async (doc)=>{
+        if(!doc.exists || doc.data().status !== "active"){ logout(); return; }
+        await resolveDriverCabAndEnter();
+      }).catch(()=>{ currentUser = null; currentDriverId = null; });
+    }
+  }).catch((err)=>{
+    console.error("Anonymous sign-in failed:", err);
+    showToast("Connection error — please reload the app");
+  });
   if("serviceWorker" in navigator){
     navigator.serviceWorker.register("service-worker-v3.js").then((reg)=>{
       // If a new service worker is already waiting (found on this load), activate it now
