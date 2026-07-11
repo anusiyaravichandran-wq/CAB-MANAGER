@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>OTP Isolation Test</title>
+</head>
+<body style="font-family: sans-serif; padding: 20px;">
+  <h2>Minimal OTP Test</h2>
+  <p>SDK version: <span id="sdkv"></span></p>
+  <input id="phone" value="+919092959814" style="font-size:18px; padding:6px;">
+  <button id="send" style="font-size:18px; padding:6px 16px;">Send OTP</button>
+  <div id="recaptcha-container-test"></div>
+  <pre id="log" style="background:#eee; padding:10px; margin-top:20px; white-space:pre-wrap;"></pre>
+
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
+  <script>
+    const log = (msg) => {
+      document.getElementById('log').textContent += msg + "\n";
+      console.log(msg);
+    };
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAeupI3EuaNwcII_rDexSmQR8ais_csfSw",
+      authDomain: "taxi-maintenance.firebaseapp.com",
+      projectId: "taxi-maintenance",
+      storageBucket: "taxi-maintenance.firebasestorage.app",
+      messagingSenderId: "323446645683",
+      appId: "1:323446645683:web:1016eadfaa260816a8e1c6"
+    };
+
+    document.getElementById('sdkv').textContent = firebase.SDK_VERSION;
+    log("Initializing app...");
+
+    try {
+      firebase.initializeApp(firebaseConfig);
+      log("App initialized OK. apiKey in use: " + firebase.apps[0].options.apiKey);
+    } catch (e) {
+      log("INIT FAILED: " + e.code + " | " + e.message);
+    }
+
+    const auth = firebase.auth();
+    log("auth() object created: " + !!auth);
+
+    let verifier = null;
+    document.getElementById('send').addEventListener('click', async () => {
+      log("--- Send OTP clicked ---");
+      try {
+        log("Constructing RecaptchaVerifier...");
+        verifier = new firebase.auth.RecaptchaVerifier('recaptcha-container-test', { size: 'invisible' }, auth);
+        log("RecaptchaVerifier constructed OK.");
+      } catch (e) {
+        log("RECAPTCHA CONSTRUCTOR FAILED");
+        log("code: " + e.code);
+        log("message: " + e.message);
+        return;
+      }
+
+      try {
+        const phone = document.getElementById('phone').value.trim();
+        log("Calling signInWithPhoneNumber(" + phone + ")...");
+        const result = await auth.signInWithPhoneNumber(phone, verifier);
+        log("SUCCESS — OTP sent. Confirmation result received.");
+      } catch (e) {
+        log("SIGN-IN FAILED");
+        log("code: " + e.code);
+        log("message: " + e.message);
+      }
+    });
+  </script>
+</body>
+</html>
