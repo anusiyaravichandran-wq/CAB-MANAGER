@@ -1,7 +1,7 @@
 /* ===================== FIREBASE CONFIG ===================== */
 /* TODO: Replace with your own Firebase project config (Firestore + Auth-anonymous enabled) */
 const firebaseConfig = {
-  apiKey: "AIzaSyDZEnscd8fLl4iL5mj59sGIXuJD1ABXicU",
+  apiKey: "AIzaSyAeupI3EuaNwcII_rDexSmQR8ais_csfSw",
   authDomain: "taxi-maintenance.firebaseapp.com",
   projectId: "taxi-maintenance",
   storageBucket: "taxi-maintenance.firebasestorage.app",
