@@ -1,4 +1,4 @@
-const CACHE_NAME = "taxi-tracker-v3-1";
+const CACHE_NAME = "taxi-tracker-v3-2";
 const ASSETS = [
   "./index.html",
   "./app-v3.js",
